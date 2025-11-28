@@ -1,0 +1,24 @@
+> kvm-rpa-frontend@1.0.0 build /Users/liu/Work/s
+> kvm-rpa-frontend@1.0.0 build /Users/liu/Work/sophon/sophon-demo/kvm-rp
+> kvm-rpa-frontend@1.0.0 build /Users/liu/Work/sophon/sophon-demo/kvm-rpa/frontend
+> vue-tsc && vite build
+
+
+/Users/liu/Work/sophon/s
+/Users/liu/Work/sophon/sophon-demo/kvm-rpa/front
+/Users/liu/Work/sophon/sophon-demo/kvm-rpa/frontend/node_modules/vue-tsc
+/Users/liu/Work/sophon/sophon-demo/kvm-rpa/frontend/node_modules/vue-tsc/bin/vue-tsc.js:68
+                       t
+                       throw err;
+                       ^
+Search string not found:
+Search string not found: "/supportedTSExtensions
+Search string not found: "/supportedTSExtensions = .*(?=;)/"
+(Use `node --trace-uncau
+(Use `node --trace-uncaught ...` to show where t
+(Use `node --trace-uncaught ...` to show where the exception was thrown)
+
+Node.js v22.20.0
+ ELIFECYCLE  Command fai
+ ELIFECYCLE  Command failed with exit code 1.
+

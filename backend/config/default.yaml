@@ -1,0 +1,31 @@
+# KVM RPA 系统配置文件
+# 注意: YOLO、OCR、RTSP、KVM 等参数已迁移到流程节点属性中配置
+# 此配置文件仅保留系统级别的配置
+
+# 日志配置
+logging:
+  level: "INFO"
+  console: true
+  file: true
+  file_path: "logs/rpa.log"
+  rotation: "10 MB"
+  retention: "7 days"
+
+# 监控配置
+monitoring:
+  enabled: false
+  prometheus_port: 9090
+
+# API 服务配置
+api:
+  host: "0.0.0.0"
+  port: 8000
+
+# 流程配置
+flows:
+  # 流程文件存储目录
+  directory: "flows"
+  # 是否自动加载流程
+  auto_load: false
+  # 是否自动执行流程
+  auto_execute: false

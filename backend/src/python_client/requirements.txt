@@ -1,0 +1,21 @@
+# KVM Python SDK Dependencies
+
+# Core dependencies
+pydes>=2.0.1  # DES encryption for VNC authentication
+
+# Image processing
+opencv-python>=4.5.0  # OpenCV for image processing and saving
+numpy>=1.20.0  # NumPy for array operations
+
+# Note: H.264 解码需要安装 FFmpeg 命令行工具
+# macOS: brew install ffmpeg
+# Linux: apt install ffmpeg
+
+# Optional RTSP server support
+# aiortsp>=0.0.3  # Uncomment if you need RTSP server functionality
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+
+

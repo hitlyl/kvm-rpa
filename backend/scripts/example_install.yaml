@@ -1,0 +1,204 @@
+# KVM RPA 示例脚本 - 软件安装向导自动化
+# 版本: 1.0
+# 作者: RPA Team
+# 描述: 自动完成典型的软件安装向导流程
+
+name: "软件安装向导自动化"
+description: "自动点击安装向导的各个步骤，完成软件安装"
+version: "1.0"
+
+# 全局变量定义
+variables:
+  install_path: "C:\\Program Files\\MyApplication"
+  current_step: 0
+  max_retries: 3
+  retry_count: 0
+
+# 触发条件（可选）
+triggers:
+  - type: ocr
+    text_contains: "安装向导"
+    min_confidence: 0.7
+
+# 动作序列
+actions:
+  # 步骤 1: 等待欢迎页面
+  - type: ocr_check
+    text: "欢迎"
+    timeout: 15
+    match_mode: "contains"
+    on_success:
+      - type: log
+        message: "检测到欢迎页面，准备点击下一步"
+        level: "info"
+      
+      - type: click
+        target: [640, 550]  # 下一步按钮坐标（根据实际调整）
+        button: "left"
+        clicks: 1
+      
+      - type: wait
+        duration: 1.5
+      
+      - type: set_variable
+        name: current_step
+        value: 1
+    
+    on_failure:
+      - type: log
+        message: "未检测到欢迎页面，安装可能已开始"
+        level: "warning"
+
+  # 步骤 2: 许可协议页面
+  - type: ocr_check
+    text: "许可协议"
+    timeout: 10
+    on_success:
+      - type: log
+        message: "检测到许可协议页面"
+      
+      # 勾选"我接受协议"复选框（坐标需根据实际调整）
+      - type: click
+        target: [350, 400]
+        button: "left"
+      
+      - type: wait
+        duration: 0.5
+      
+      # 点击下一步
+      - type: click
+        target: [640, 550]
+      
+      - type: wait
+        duration: 1.5
+      
+      - type: set_variable
+        name: current_step
+        value: 2
+
+  # 步骤 3: 选择安装路径
+  - type: ocr_check
+    text: "安装位置"
+    timeout: 10
+    on_success:
+      - type: log
+        message: "检测到安装路径选择页面"
+      
+      # 点击路径输入框
+      - type: click
+        target: [500, 350]
+      
+      - type: wait
+        duration: 0.3
+      
+      # 清空输入框（Ctrl+A 然后 Delete）
+      - type: key
+        combination: ["CTRL", "A"]
+      
+      - type: wait
+        duration: 0.2
+      
+      - type: key
+        key: "DELETE"
+      
+      - type: wait
+        duration: 0.2
+      
+      # 输入自定义路径
+      - type: input
+        text: "${install_path}"
+      
+      - type: wait
+        duration: 0.5
+      
+      # 点击下一步
+      - type: click
+        target: [640, 550]
+      
+      - type: wait
+        duration: 1.5
+      
+      - type: set_variable
+        name: current_step
+        value: 3
+
+  # 步骤 4: 选择组件（可选页面）
+  - type: ocr_check
+    text: "组件"
+    timeout: 5
+    on_success:
+      - type: log
+        message: "检测到组件选择页面，选择默认安装"
+      
+      # 直接点击下一步（使用默认选项）
+      - type: click
+        target: [640, 550]
+      
+      - type: wait
+        duration: 1.5
+    
+    on_failure:
+      # 如果没有组件选择页面，继续下一步
+      - type: log
+        message: "未检测到组件选择页面，跳过此步骤"
+        level: "info"
+
+  # 步骤 5: 确认安装
+  - type: ocr_check
+    text: "准备安装"
+    timeout: 10
+    on_success:
+      - type: log
+        message: "准备开始安装"
+      
+      # 点击"安装"按钮
+      - type: click
+        target: [640, 550]
+      
+      - type: wait
+        duration: 2.0
+      
+      - type: set_variable
+        name: current_step
+        value: 4
+
+  # 步骤 6: 等待安装完成
+  - type: ocr_check
+    text: "完成"
+    timeout: 300  # 等待最多 5 分钟
+    on_success:
+      - type: log
+        message: "安装完成"
+        level: "info"
+      
+      # 取消勾选"启动应用程序"（如果有）
+      - type: click
+        target: [350, 450]
+        button: "left"
+      
+      - type: wait
+        duration: 0.5
+      
+      # 点击"完成"按钮
+      - type: click
+        target: [640, 550]
+      
+      - type: wait
+        duration: 1.0
+      
+      - type: set_variable
+        name: current_step
+        value: 5
+      
+      - type: log
+        message: "安装向导流程全部完成！"
+        level: "info"
+    
+    on_failure:
+      - type: log
+        message: "安装超时或失败"
+        level: "error"
+
+# 错误处理策略
+on_error: "stop"  # stop, continue, retry
+

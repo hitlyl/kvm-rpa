@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Models (大文件，不提交到版本控制)
+backend/models/*.pt
+backend/models/*.pth
+backend/models/*.onnx
+
+# Temporary files
+*.tmp
+*.bak
+
+# Config (敏感配置不提交)
+backend/config/production.yaml
+backend/config/*secret*
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+
+# OS
+Thumbs.db
+
+ai/
+.cursor/
+
+tests/
+refs/
+deploy/

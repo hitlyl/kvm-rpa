@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Recognition Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .scenario-box {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #0056b3;
+            border-bottom: 2px solid #0056b3;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .button-group, .input-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            align-items: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .label {
+            font-size: 18px;
+            font-weight: bold;
+            color: #555;
+            padding: 5px 0;
+        }
+        .input-field {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 250px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>KVM RPA Flow Recognition Test Scenarios</h1>
+
+    <div class="scenario-box" id="scenario1">
+        <div class="label">测试</div>
+        <div class="button-group">
+            <button class="btn btn-primary" id="nextBtn1">下一步</button>
+        </div>
+    </div>
+    <div class="scenario-box hidden" id="scenario2">
+        <div class="label">测试2</div>
+        <div class="button-group">
+            <button class="btn btn-info" id="prevBtn2">上一步</button>
+            <button class="btn btn-success" id="nextBtn2">下一步</button>
+        </div>
+    </div>
+    <div class="scenario-box hidden" id="scenario3">
+        <div class="label">请输入</div>
+        <div class="input-group">
+            <input type="text" class="input-field" id="inputField3" placeholder="Type here...">
+        </div>
+        <div class="button-group">
+            <button class="btn btn-info" id="prevBtn3">上一步</button>
+            <button class="btn btn-primary" id="finishBtn3">结束</button>
+        </div>
+    </div>
+    <div class="scenario-box hidden" id="scenario4">
+        <div class="label">结束</div>
+        <div class="button-group">
+            <button class="btn btn-info" id="prevBtn4">上一步</button>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const s1 = document.getElementById('scenario1');
+            const s2 = document.getElementById('scenario2');
+            const s3 = document.getElementById('scenario3');
+            const s4 = document.getElementById('scenario4');
+
+            const nextBtn1 = document.getElementById('nextBtn1');
+            const prevBtn2 = document.getElementById('prevBtn2');
+            const nextBtn2 = document.getElementById('nextBtn2');
+            const prevBtn3 = document.getElementById('prevBtn3');
+            const finishBtn3 = document.getElementById('finishBtn3');
+            const prevBtn4 = document.getElementById('prevBtn4');
+
+            // Scenario 1 -> 2
+            if (nextBtn1) {
+                nextBtn1.addEventListener('click', () => {
+                    s1.classList.add('hidden');
+                    s2.classList.remove('hidden');
+                });
+            }
+
+            // Scenario 2 -> 1
+            if (prevBtn2) {
+                prevBtn2.addEventListener('click', () => {
+                    s2.classList.add('hidden');
+                    s1.classList.remove('hidden');
+                });
+            }
+
+            // Scenario 2 -> 3
+            if (nextBtn2) {
+                nextBtn2.addEventListener('click', () => {
+                    s2.classList.add('hidden');
+                    s3.classList.remove('hidden');
+                });
+            }
+
+            // Scenario 3 -> 2
+            if (prevBtn3) {
+                prevBtn3.addEventListener('click', () => {
+                    s3.classList.add('hidden');
+                    s2.classList.remove('hidden');
+                });
+            }
+
+            // Scenario 3 -> 4
+            if (finishBtn3) {
+                finishBtn3.addEventListener('click', () => {
+                    s3.classList.add('hidden');
+                    s4.classList.remove('hidden');
+                });
+            }
+
+            // Scenario 4 -> 3
+            if (prevBtn4) {
+                prevBtn4.addEventListener('click', () => {
+                    s4.classList.add('hidden');
+                    s3.classList.remove('hidden');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

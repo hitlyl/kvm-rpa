@@ -1,0 +1,26 @@
+# KVM RPA 系统依赖包 - 生产环境
+# Python 版本要求: >=3.9
+# 适用于 x86 Linux 服务器，包含完整的深度学习库
+
+# 基础依赖（从 requirements.txt 继承）
+-r requirements.txt
+
+# 目标检测 - YOLOv8
+ultralytics==8.0.196
+torch==2.1.0
+torchvision==0.16.0
+
+# OCR 识别
+paddleocr==2.7.0.3
+paddlepaddle==2.5.1
+
+# 注意：
+# 1. 在 x86 Linux 服务器上安装这些依赖
+# 2. 修改检测器和 OCR 引擎，移除 mock_mode 或设置为 False
+# 3. 提供真实的 YOLO 模型文件和 RTSP 视频流地址
+
+
+
+
+
+

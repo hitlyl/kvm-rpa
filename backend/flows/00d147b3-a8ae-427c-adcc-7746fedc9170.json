@@ -1,0 +1,31 @@
+{
+  "id": "00d147b3-a8ae-427c-adcc-7746fedc9170",
+  "name": "新建流程",
+  "description": "",
+  "version": "1.0",
+  "nodes": [
+    {
+      "id": "node_1764210452429_drwq1xu68",
+      "type": "kvm_source",
+      "label": "",
+      "x": 240.0,
+      "y": 180.0,
+      "properties": {
+        "ip": null,
+        "port": 5900,
+        "channel": 0,
+        "username": "admin",
+        "password": "admin"
+      },
+      "text": {
+        "x": 240,
+        "y": 180,
+        "value": "KVM 视频源"
+      }
+    }
+  ],
+  "edges": [],
+  "variables": {},
+  "created_at": "2025-11-27T10:27:41.844660",
+  "updated_at": "2025-11-27T10:27:41.844660"
+}
