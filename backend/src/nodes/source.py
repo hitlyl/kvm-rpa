@@ -152,12 +152,15 @@ class KVMSourceNode(BaseNode):
         from kvm.kvm_manager import get_kvm_manager
         
         flow_id = getattr(context, 'flow_id', '')
+        loop_count = getattr(context, 'loop_count', 0)
         
         ip = properties.get('ip', '')
         port = int(properties.get('port', 5900))
         channel = int(properties.get('channel', 0))
         username = properties.get('username', 'admin')
         password = properties.get('password', 'admin')
+        # 是否等待新帧（可选，默认 False）
+        wait_new_frame = properties.get('wait_new_frame', False)
         
         if not ip:
             error_msg = "KVM IP 地址未配置"
@@ -165,7 +168,7 @@ class KVMSourceNode(BaseNode):
             if hasattr(context, 'last_error'):
                 context.last_error = error_msg
             if flow_id:
-                send_debug(flow_id, f"KVM: {error_msg}")
+                send_debug(flow_id, f"❌ KVM: {error_msg}")
             return False
         
         try:
@@ -176,7 +179,7 @@ class KVMSourceNode(BaseNode):
             if not getattr(context, '_kvm_initialized', False) or getattr(context, '_kvm_key', '') != kvm_key:
                 # 首次执行或配置变更，获取或创建连接
                 if flow_id:
-                    send_debug(flow_id, f"KVM: 正在连接 {ip}:{port}...")
+                    send_debug(flow_id, f"🔌 KVM: 正在连接 {ip}:{port}...")
                     
                 instance = kvm_manager.get_or_create(
                     ip=ip,
@@ -193,12 +196,13 @@ class KVMSourceNode(BaseNode):
                     if hasattr(context, 'last_error'):
                         context.last_error = error_msg
                     if flow_id:
-                        send_debug(flow_id, f"KVM: {error_msg}")
+                        send_debug(flow_id, f"❌ KVM: {error_msg}")
                     return False
                 
                 # 标记已初始化
                 context._kvm_initialized = True
                 context._kvm_key = kvm_key
+                context._last_frame_time = 0.0
                 
                 # 保存 KVM 配置到上下文（供后续节点使用）
                 context.kvm_config = {
@@ -210,22 +214,49 @@ class KVMSourceNode(BaseNode):
                 }
                 logger.info(f"KVM 连接已初始化: {kvm_key}")
                 if flow_id:
-                    send_debug(flow_id, f"KVM: 连接成功 {ip}:{port}")
+                    send_debug(flow_id, f"✅ KVM: 连接成功 {ip}:{port}")
             
-            # 获取最新帧（带自动重连）
-            frame = kvm_manager.get_frame_with_reconnect(
-                ip=ip,
-                port=port,
-                channel=channel,
-                username=username,
-                password=password,
-                timeout=2.0
-            )
+            # 获取帧
+            frame = None
+            frame_info = None
+            
+            if wait_new_frame:
+                # 等待新帧模式：确保获取操作后的最新画面
+                if flow_id:
+                    send_debug(flow_id, f"📺 KVM[{loop_count}]: 等待新帧...")
+                frame = kvm_manager.wait_for_new_frame(ip, port, channel, timeout=2.0)
+            else:
+                # 默认模式：获取缓存中的最新帧（带自动重连）
+                frame = kvm_manager.get_frame_with_reconnect(
+                    ip=ip,
+                    port=port,
+                    channel=channel,
+                    username=username,
+                    password=password,
+                    timeout=2.0
+                )
             
             if frame is not None:
+                current_time = time.time()
+                last_frame_time = getattr(context, '_last_frame_time', 0.0)
+                
+                # 保存帧到上下文
                 context.current_frame = frame
-                context.current_timestamp = time.time()
-                logger.debug(f"KVM 获取帧成功: {ip}:{port}, shape={frame.shape}")
+                context.current_timestamp = current_time
+                context._last_frame_time = current_time
+                
+                # 计算帧时间间隔
+                frame_interval = current_time - last_frame_time if last_frame_time > 0 else 0
+                
+                # 发送关键日志到 SSE
+                if flow_id:
+                    send_debug(
+                        flow_id, 
+                        f"📸 KVM[{loop_count}]: 获取帧成功 {frame.shape[1]}x{frame.shape[0]}, "
+                        f"间隔={frame_interval:.2f}s"
+                    )
+                
+                logger.debug(f"KVM 获取帧成功: {ip}:{port}, shape={frame.shape}, interval={frame_interval:.2f}s")
                 return True
             else:
                 error_msg = f"KVM 获取帧失败: {ip}:{port}"
@@ -233,7 +264,7 @@ class KVMSourceNode(BaseNode):
                 if hasattr(context, 'last_error'):
                     context.last_error = error_msg
                 if flow_id:
-                    send_debug(flow_id, f"KVM: 获取帧失败，可能需要重连")
+                    send_debug(flow_id, f"⚠️ KVM[{loop_count}]: 获取帧失败，可能需要重连")
                 return False
                 
         except Exception as e:
@@ -242,7 +273,7 @@ class KVMSourceNode(BaseNode):
             if hasattr(context, 'last_error'):
                 context.last_error = error_msg
             if flow_id:
-                send_debug(flow_id, f"KVM: 异常 - {str(e)}")
+                send_debug(flow_id, f"❌ KVM[{loop_count}]: 异常 - {str(e)}")
             return False
     
     def execute_action(self, action: str, properties: Dict[str, Any]) -> Dict[str, Any]:

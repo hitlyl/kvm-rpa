@@ -221,6 +221,16 @@ function updateNodeProperties(id: string, properties: any) {
   }
 }
 
+// 更新节点文本（显示名称）
+function updateNodeText(id: string, text: string) {
+  if (lf.value) {
+    const nodeModel = lf.value.getNodeModelById(id)
+    if (nodeModel) {
+      nodeModel.updateText(text)
+    }
+  }
+}
+
 // 更新连线属性
 function updateEdgeProperties(id: string, properties: any) {
   if (lf.value) {
@@ -282,6 +292,7 @@ defineExpose({
   zoomOut: () => lf.value?.zoom(false),
   fitView: () => lf.value?.fitView(),
   updateNodeProperties,
+  updateNodeText,
   updateEdgeProperties,
   updateEdgeText,
   deleteEdge,

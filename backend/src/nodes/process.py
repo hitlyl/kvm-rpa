@@ -12,6 +12,129 @@ from api.sse_service import send_debug
 
 
 @register_node
+class ImageCropNode(BaseNode):
+    """图像裁剪节点
+    
+    将当前帧裁剪为指定区域，用于后续处理（如 OCR）。
+    裁剪后的图像会替换 context.current_frame。
+    """
+    
+    @classmethod
+    def get_config(cls) -> NodeConfig:
+        return NodeConfig(
+            type="image_crop",
+            label="图像裁剪",
+            category="process",
+            icon="Crop",
+            color="#91CC75",
+            description="裁剪图像到指定区域",
+            properties=[
+                NodePropertyDef(
+                    key="x",
+                    label="X 坐标",
+                    type="number",
+                    default=0,
+                    description="裁剪区域左上角 X 坐标"
+                ),
+                NodePropertyDef(
+                    key="y",
+                    label="Y 坐标",
+                    type="number",
+                    default=0,
+                    description="裁剪区域左上角 Y 坐标"
+                ),
+                NodePropertyDef(
+                    key="width",
+                    label="宽度",
+                    type="number",
+                    default=640,
+                    description="裁剪区域宽度（0 表示到图像右边缘）"
+                ),
+                NodePropertyDef(
+                    key="height",
+                    label="高度",
+                    type="number",
+                    default=480,
+                    description="裁剪区域高度（0 表示到图像下边缘）"
+                ),
+                NodePropertyDef(
+                    key="save_original",
+                    label="保留原图",
+                    type="boolean",
+                    default=True,
+                    description="是否将原图保存到 context.original_frame"
+                )
+            ]
+        )
+    
+    def execute(self, context: Any, properties: Dict[str, Any]) -> Any:
+        """执行图像裁剪"""
+        flow_id = getattr(context, 'flow_id', '')
+        loop_count = getattr(context, 'loop_count', 0)
+        
+        if context.current_frame is None:
+            logger.warning("当前帧为空，无法进行裁剪")
+            if flow_id:
+                send_debug(flow_id, f"❌ 裁剪[{loop_count}]: 当前帧为空")
+            return False
+        
+        try:
+            import numpy as np
+            
+            frame = context.current_frame
+            h, w = frame.shape[:2]
+            
+            # 获取裁剪参数
+            x = int(properties.get('x', 0))
+            y = int(properties.get('y', 0))
+            crop_width = int(properties.get('width', 0))
+            crop_height = int(properties.get('height', 0))
+            save_original = properties.get('save_original', True)
+            
+            # 确保坐标有效
+            x = max(0, min(x, w - 1))
+            y = max(0, min(y, h - 1))
+            
+            # 计算实际裁剪区域
+            if crop_width <= 0:
+                crop_width = w - x
+            if crop_height <= 0:
+                crop_height = h - y
+            
+            # 确保不超出边界
+            x2 = min(x + crop_width, w)
+            y2 = min(y + crop_height, h)
+            
+            # 保存原图
+            if save_original:
+                context.original_frame = frame.copy()
+            
+            # 裁剪
+            cropped = frame[y:y2, x:x2]
+            
+            # 更新当前帧
+            context.current_frame = cropped
+            
+            # 记录裁剪信息（用于坐标转换）
+            context.crop_offset = (x, y)
+            context.crop_size = (x2 - x, y2 - y)
+            
+            crop_h, crop_w = cropped.shape[:2]
+            logger.debug(f"图像裁剪完成: ({x}, {y}) -> {crop_w}x{crop_h}")
+            
+            if flow_id:
+                send_debug(flow_id, f"✂️ 裁剪[{loop_count}]: ({x},{y}) {crop_w}x{crop_h}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"图像裁剪失败: {e}")
+            if flow_id:
+                send_debug(flow_id, f"❌ 裁剪[{loop_count}]: 失败 - {e}")
+            return False
+
+
+@register_node
 class PreprocessingNode(BaseNode):
     """图像预处理节点"""
     
@@ -338,13 +461,43 @@ class OCRRecognitionNode(BaseNode):
                     key="conf_threshold",
                     label="置信度阈值",
                     type="number",
-                    default=0.5
+                    default=0.5,
+                    description="识别结果置信度阈值（0.3-0.8）"
                 ),
                 NodePropertyDef(
                     key="use_angle_cls",
                     label="使用方向分类",
                     type="boolean",
-                    default=False
+                    default=False,
+                    description="是否使用文字方向分类"
+                ),
+                NodePropertyDef(
+                    key="img_size_w",
+                    label="识别宽度",
+                    type="number",
+                    default=640,
+                    description="识别模型输入宽度（推荐 320-640）"
+                ),
+                NodePropertyDef(
+                    key="img_size_h",
+                    label="识别高度",
+                    type="number",
+                    default=48,
+                    description="识别模型输入高度（必须为 48，与模型匹配）"
+                ),
+                NodePropertyDef(
+                    key="use_beam_search",
+                    label="使用 Beam Search",
+                    type="boolean",
+                    default=False,
+                    description="Beam Search 可提高识别准确性但更慢"
+                ),
+                NodePropertyDef(
+                    key="beam_size",
+                    label="Beam Size",
+                    type="number",
+                    default=5,
+                    description="Beam Search 宽度（仅在启用时有效）"
                 )
             ]
         )
@@ -352,11 +505,12 @@ class OCRRecognitionNode(BaseNode):
     def execute(self, context: Any, properties: Dict[str, Any]) -> Any:
         """执行 OCR 识别"""
         flow_id = getattr(context, 'flow_id', '')
+        loop_count = getattr(context, 'loop_count', 0)
         
         if context.current_frame is None:
             logger.warning("当前帧为空，无法进行OCR识别")
             if flow_id:
-                send_debug(flow_id, "OCR: 当前帧为空，无法进行识别")
+                send_debug(flow_id, f"❌ OCR[{loop_count}]: 当前帧为空，无法进行识别")
             return False
         
         try:
@@ -364,15 +518,15 @@ class OCRRecognitionNode(BaseNode):
             if ocr_engine is None:
                 logger.error("无法创建 OCR 引擎")
                 if flow_id:
-                    send_debug(flow_id, "OCR: 无法创建 OCR 引擎")
+                    send_debug(flow_id, f"❌ OCR[{loop_count}]: 无法创建 OCR 引擎")
                 return False
             
             conf_threshold = float(properties.get('conf_threshold', 0.6))
             
             # 发送调试信息
+            frame_shape = context.current_frame.shape if hasattr(context.current_frame, 'shape') else 'unknown'
             if flow_id:
-                frame_shape = context.current_frame.shape if hasattr(context.current_frame, 'shape') else 'unknown'
-                send_debug(flow_id, f"OCR: 开始识别，图像尺寸={frame_shape}，置信度阈值={conf_threshold}")
+                send_debug(flow_id, f"🔍 OCR[{loop_count}]: 开始识别 {frame_shape[1]}x{frame_shape[0]}...")
             
             # 执行 OCR 识别
             raw_results = ocr_engine.recognize(
@@ -398,14 +552,11 @@ class OCRRecognitionNode(BaseNode):
             
             # 发送识别结果到前端
             if flow_id:
-                send_debug(flow_id, f"OCR: 识别完成，共 {len(normalized_results)} 个文本区域")
+                send_debug(flow_id, f"✅ OCR[{loop_count}]: 识别完成，共 {len(normalized_results)} 个文本")
                 # 发送前几个识别结果的详情
-                for i, r in enumerate(normalized_results[:8]):
-                    text = r['text']
-                    center = r['center']
-                    conf = r['confidence']
-                    center_str = f"({int(center[0])},{int(center[1])})" if center else "N/A"
-                    send_debug(flow_id, f"OCR [{i+1}]: '{text}' @ {center_str}, conf={conf:.2f}")
+                if normalized_results:
+                    texts_preview = [r['text'] for r in normalized_results[:5]]
+                    send_debug(flow_id, f"📝 OCR[{loop_count}]: {texts_preview}")
             
             # 打印识别结果到日志
             for r in normalized_results[:5]:  # 只打印前5个
@@ -482,10 +633,25 @@ class OCRRecognitionNode(BaseNode):
         if not hasattr(context, 'ocr_engines'):
             context.ocr_engines = {}
         
-        config_key = f"{node_id}_{properties.get('backend')}_{properties.get('det_model')}"
+        # 计算配置 key（包含影响引擎初始化的参数）
+        # 注意：img_size_h 必须为 48，与 PP-OCR 模型匹配
+        img_size_w = int(properties.get('img_size_w', 640))
+        img_size_h = int(properties.get('img_size_h', 48))
+        use_beam_search = properties.get('use_beam_search', False)
+        beam_size = int(properties.get('beam_size', 5))
+        
+        config_key = (f"{node_id}_{properties.get('backend')}_{properties.get('det_model')}_"
+                      f"{img_size_w}x{img_size_h}_beam{use_beam_search}")
         
         if config_key not in context.ocr_engines:
             try:
+                # 构建 img_size 参数
+                # 支持多个尺寸用于不同长度的文本
+                img_size = [[img_size_w, img_size_h]]
+                # 如果宽度较大，添加一个较小的尺寸用于短文本
+                if img_size_w > 400:
+                    img_size.insert(0, [320, img_size_h])
+                
                 engine = OCREngine(
                     lang=['ch', 'en'],  # 默认中英文
                     conf_threshold=float(properties.get('conf_threshold', 0.5)),
@@ -495,10 +661,14 @@ class OCRRecognitionNode(BaseNode):
                     rec_model=properties.get('rec_model'),
                     cls_model=properties.get('cls_model') or None,
                     char_dict_path=properties.get('char_dict_path'),
-                    dev_id=int(properties.get('dev_id', 0))
+                    dev_id=int(properties.get('dev_id', 0)),
+                    img_size=img_size,
+                    use_beam_search=use_beam_search,
+                    beam_size=beam_size
                 )
                 context.ocr_engines[config_key] = engine
-                logger.info(f"OCR引擎已创建: backend={properties.get('backend')}")
+                logger.info(f"OCR引擎已创建: backend={properties.get('backend')}, "
+                           f"img_size={img_size}, beam_search={use_beam_search}")
             except Exception as e:
                 logger.error(f"创建OCR引擎失败: {e}")
                 return None

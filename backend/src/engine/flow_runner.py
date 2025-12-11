@@ -198,35 +198,42 @@ class FlowRunner:
             logger.error("流程数据缺少 id")
             return False
         
+        # 确保事件循环在锁外启动，避免死锁
+        self._ensure_event_loop()
+        
         with self._flows_lock:
-            # 检查是否已在运行
+            # 检查是否已在运行（修复竞态条件：检查和添加在同一个锁块中）
             if flow_id in self._flows:
                 state = self._flows[flow_id]
                 if state.status == FlowStatus.RUNNING:
                     logger.warning(f"流程已在运行中: {flow_name} ({flow_id})")
                     return False
-        
-        self._ensure_event_loop()
-        
-        # 创建运行状态
-        context = FlowRunContext(
-            flow_id=flow_id,
-            flow_name=flow_name,
-            start_time=time.time()
-        )
-        
-        state = FlowRunState(
-            flow_id=flow_id,
-            flow_name=flow_name,
-            status=FlowStatus.RUNNING,
-            context=context,
-            start_time=datetime.now()
-        )
-        
-        with self._flows_lock:
+                # 如果流程已停止/错误，先清理旧状态
+                if state.status in (FlowStatus.STOPPED, FlowStatus.ERROR):
+                    logger.info(f"清理旧的流程状态: {flow_name} ({flow_id}), 状态={state.status.value}")
+                    # 确保旧的 context 停止标志被设置
+                    if state.context:
+                        state.context.stop_requested = True
+            
+            # 创建运行状态
+            context = FlowRunContext(
+                flow_id=flow_id,
+                flow_name=flow_name,
+                start_time=time.time()
+            )
+            
+            state = FlowRunState(
+                flow_id=flow_id,
+                flow_name=flow_name,
+                status=FlowStatus.RUNNING,
+                context=context,
+                start_time=datetime.now()
+            )
+            
+            # 在锁内添加，防止竞态条件
             self._flows[flow_id] = state
         
-        # 在事件循环中启动任务
+        # 在事件循环中启动任务（在锁外，避免长时间持有锁）
         future = asyncio.run_coroutine_threadsafe(
             self._run_flow_loop(flow_data, state),
             self._loop

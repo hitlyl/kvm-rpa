@@ -50,7 +50,10 @@ class OCREngine:
         rec_model: str = None,
         cls_model: str = None,
         char_dict_path: str = None,
-        dev_id: int = 0
+        dev_id: int = 0,
+        img_size: list = None,
+        use_beam_search: bool = False,
+        beam_size: int = 5
     ):
         """初始化 OCR 引擎
         
@@ -65,6 +68,9 @@ class OCREngine:
             cls_model: 分类模型BModel路径
             char_dict_path: 字符字典路径(ppocr_keys_v1.txt)
             dev_id: Sophon设备ID
+            img_size: 识别模型输入尺寸列表,如 [[320, 48], [640, 48]]
+            use_beam_search: 是否使用 beam search
+            beam_size: beam search 宽度
         """
         self.lang = lang or ['ch', 'en']
         self.conf_threshold = conf_threshold
@@ -76,6 +82,10 @@ class OCREngine:
         self.cls_model = cls_model
         self.char_dict_path = char_dict_path or "models/ppocr_keys_v1.txt"
         self.dev_id = dev_id
+        # 默认使用较高分辨率以提高识别精度
+        self.img_size = img_size or [[320, 48], [640, 48]]
+        self.use_beam_search = use_beam_search
+        self.beam_size = beam_size
         self.mock_mode = True
         
         # 实际OCR引擎实例
@@ -127,6 +137,7 @@ class OCREngine:
                 logger.info(f"检测模型: {self.det_model}")
                 logger.info(f"识别模型: {self.rec_model}")
                 logger.info(f"字符字典: {self.char_dict_path}")
+                logger.info(f"识别尺寸: {self.img_size}, beam_search={self.use_beam_search}")
                 self.ocr_engine = PPOCRSophon(
                     det_model=self.det_model,
                     rec_model=self.rec_model,
@@ -134,7 +145,10 @@ class OCREngine:
                     char_dict_path=self.char_dict_path,
                     use_angle_cls=self.use_angle_cls,
                     rec_thresh=self.conf_threshold,
-                    dev_id=self.dev_id
+                    dev_id=self.dev_id,
+                    img_size=self.img_size,
+                    use_beam_search=self.use_beam_search,
+                    beam_size=self.beam_size
                 )
                 self.mock_mode = False
                 self.backend = "sophon"

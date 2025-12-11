@@ -106,7 +106,7 @@
             <h3>节点属性</h3>
             <el-form label-position="top">
               <el-form-item label="节点名称">
-                <el-input v-model="selectedNode.label" @blur="updateNodeLabel" />
+                <el-input v-model="selectedNode.label" @input="updateNodeLabel" />
               </el-form-item>
 
               <template v-for="prop in currentNodeConfig?.properties" :key="prop.key">
@@ -583,7 +583,22 @@ function updateFlowName() {
 }
 
 function updateNodeLabel() {
-  // 更新节点标签
+  // 更新节点标签到 LogicFlow 画布
+  if (!selectedNode.value || !canvasRef.value) return
+  
+  const nodeId = selectedNode.value.id
+  const newLabel = selectedNode.value.label
+  
+  // 更新节点显示的文本
+  canvasRef.value.updateNodeText(nodeId, newLabel)
+  
+  // 同时保存到 properties 中（用于保存时恢复）
+  canvasRef.value.updateNodeProperties(nodeId, { 
+    ...selectedNode.value.properties,
+    _label: newLabel
+  })
+  
+  console.log('节点名称已更新:', nodeId, newLabel)
 }
 
 /**

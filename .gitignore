@@ -69,6 +69,4 @@ Thumbs.db
 ai/
 .cursor/
 
-tests/
-refs/
 deploy/

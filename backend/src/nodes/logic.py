@@ -3,6 +3,7 @@
 包含条件判断、循环、变量操作等逻辑节点。
 条件节点支持 OCR 文本匹配、检测结果判断等多种条件类型。
 """
+import re
 from typing import Dict, Any, Optional, List, Tuple
 from loguru import logger
 
@@ -19,8 +20,8 @@ def _find_text_in_ocr_results(
     
     Args:
         ocr_results: OCR 识别结果列表
-        target_text: 目标文本
-        match_mode: 匹配模式 ("exact" | "contains")
+        target_text: 目标文本或正则表达式
+        match_mode: 匹配模式 ("exact" | "contains" | "regex")
         
     Returns:
         匹配的结果项，未找到返回 None
@@ -28,11 +29,23 @@ def _find_text_in_ocr_results(
     if not ocr_results or not target_text:
         return None
     
+    # 编译正则表达式（如果是正则模式）
+    regex_pattern = None
+    if match_mode == "regex":
+        try:
+            regex_pattern = re.compile(target_text)
+        except re.error as e:
+            logger.error(f"正则表达式语法错误: {target_text}, 错误: {e}")
+            return None
+    
     for result in ocr_results:
         text = result.get('text', '')
         
         if match_mode == "exact":
             if text == target_text:
+                return result
+        elif match_mode == "regex":
+            if regex_pattern and regex_pattern.search(text):
                 return result
         else:  # contains
             if target_text in text:
@@ -98,8 +111,10 @@ class ConditionNode(BaseNode):
                     default="contains",
                     options=[
                         {"label": "包含", "value": "contains"},
-                        {"label": "精确匹配", "value": "exact"}
+                        {"label": "精确匹配", "value": "exact"},
+                        {"label": "正则表达式", "value": "regex"}
                     ],
+                    description="包含: 文本包含目标即匹配; 精确: 完全一致; 正则: 使用正则表达式 (如 下.*步)",
                     depends_on="condition_type",
                     depends_value="ocr_text_found",
                     group="ocr"

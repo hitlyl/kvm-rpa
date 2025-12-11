@@ -45,3 +45,16 @@ export function getDefaultProperties(nodeType: string, config: any): Record<stri
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+

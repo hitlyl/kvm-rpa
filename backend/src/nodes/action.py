@@ -3,12 +3,14 @@
 包含鼠标操作、键盘操作、等待等动作节点。
 使用 KVM 连接池进行鼠标和键盘操作。
 """
+import re
 import time
 from typing import Dict, Any, Optional, Tuple
 from loguru import logger
 
 from nodes.base import BaseNode, NodeConfig, NodePropertyDef
 from nodes import register_node
+from api.sse_service import send_debug
 
 
 def _get_kvm_config(context: Any) -> Optional[Dict[str, Any]]:
@@ -27,8 +29,8 @@ def _find_text_position(
     
     Args:
         ocr_results: OCR 结果列表
-        target_text: 目标文本
-        match_mode: 匹配模式 ("contains" | "exact")
+        target_text: 目标文本或正则表达式
+        match_mode: 匹配模式 ("contains" | "exact" | "regex")
         
     Returns:
         (x, y) 中心坐标，未找到返回 None
@@ -39,6 +41,15 @@ def _find_text_position(
     
     logger.debug(f"_find_text_position: 查找 '{target_text}' (模式={match_mode}), OCR结果数={len(ocr_results)}")
     
+    # 编译正则表达式（如果是正则模式）
+    regex_pattern = None
+    if match_mode == "regex":
+        try:
+            regex_pattern = re.compile(target_text)
+        except re.error as e:
+            logger.error(f"正则表达式语法错误: {target_text}, 错误: {e}")
+            return None
+    
     for result in ocr_results:
         text = result.get('text', '')
         
@@ -46,6 +57,8 @@ def _find_text_position(
         matched = False
         if match_mode == "exact":
             matched = (text == target_text)
+        elif match_mode == "regex":
+            matched = (regex_pattern and regex_pattern.search(text) is not None)
         else:  # contains
             matched = (target_text in text)
         
@@ -148,8 +161,10 @@ class MouseActionNode(BaseNode):
                     default="contains",
                     options=[
                         {"label": "包含", "value": "contains"},
-                        {"label": "精确匹配", "value": "exact"}
+                        {"label": "精确匹配", "value": "exact"},
+                        {"label": "正则表达式", "value": "regex"}
                     ],
+                    description="包含: 文本包含目标即匹配; 精确: 完全一致; 正则: 使用正则表达式 (如 下.*步)",
                     depends_on="position_mode",
                     depends_value="ocr_match"
                 ),
@@ -201,6 +216,9 @@ class MouseActionNode(BaseNode):
         """执行鼠标操作"""
         from kvm.kvm_manager import get_kvm_manager
         
+        flow_id = getattr(context, 'flow_id', '')
+        loop_count = getattr(context, 'loop_count', 0)
+        
         try:
             action_type = properties.get('action_type', 'click')
             button = properties.get('button', 'left')
@@ -211,7 +229,10 @@ class MouseActionNode(BaseNode):
             # 获取 KVM 配置
             kvm_config = _get_kvm_config(context)
             if not kvm_config:
-                logger.error("KVM 配置未找到，请确保流程中包含 KVM 数据源节点")
+                error_msg = "KVM 配置未找到，请确保流程中包含 KVM 数据源节点"
+                logger.error(error_msg)
+                if flow_id:
+                    send_debug(flow_id, f"❌ 鼠标[{loop_count}]: {error_msg}")
                 return False
             
             # 确定点击位置
@@ -231,12 +252,19 @@ class MouseActionNode(BaseNode):
                 
                 if not target_text:
                     logger.warning("目标文本未指定，跳过鼠标操作")
+                    if flow_id:
+                        send_debug(flow_id, f"⚠️ 鼠标[{loop_count}]: 目标文本未指定")
                     return True  # 配置问题，但不是严重错误
                 
                 ocr_results = getattr(context, 'ocr_results', [])
                 
+                # 发送 OCR 结果数量到 SSE
+                ocr_count = len(ocr_results) if ocr_results else 0
+                if flow_id:
+                    send_debug(flow_id, f"🔍 鼠标[{loop_count}]: 在 {ocr_count} 个OCR结果中查找 '{target_text}'")
+                
                 # 打印所有 OCR 结果供调试
-                logger.debug(f"OCR 结果数量: {len(ocr_results) if ocr_results else 0}")
+                logger.debug(f"OCR 结果数量: {ocr_count}")
                 if ocr_results:
                     for i, r in enumerate(ocr_results[:10]):  # 最多显示10个
                         r_text = r.get('text', '')
@@ -248,12 +276,19 @@ class MouseActionNode(BaseNode):
                     x, y = pos
                     position_found = True
                     logger.info(f"OCR 匹配: 目标='{target_text}'({match_mode}), 位置=({x}, {y})")
+                    if flow_id:
+                        send_debug(flow_id, f"✅ 鼠标[{loop_count}]: 找到 '{target_text}' @ ({x}, {y})")
                 else:
                     logger.info(f"未找到目标文本: '{target_text}'({match_mode})，跳过鼠标操作")
                     # 打印可用的文本供调试
                     if ocr_results:
                         available_texts = [r.get('text', '') for r in ocr_results[:5]]
                         logger.debug(f"可用文本: {available_texts}")
+                        if flow_id:
+                            send_debug(flow_id, f"⚠️ 鼠标[{loop_count}]: 未找到 '{target_text}'，可用: {available_texts[:3]}")
+                    else:
+                        if flow_id:
+                            send_debug(flow_id, f"⚠️ 鼠标[{loop_count}]: 未找到 '{target_text}'，OCR结果为空")
                     return True  # 未找到文本不是错误，只是跳过操作
                     
             elif position_mode == 'detection':
@@ -295,7 +330,10 @@ class MouseActionNode(BaseNode):
             kvm_manager = get_kvm_manager()
             
             if action_type == 'click':
-                logger.info(f"准备鼠标点击: 坐标=({x}, {y}), 按钮={button}, KVM={kvm_config['ip']}:{kvm_config['port']}")
+                if flow_id:
+                    send_debug(flow_id, f"🖱️ 鼠标[{loop_count}]: 点击 ({x}, {y}), {button}键")
+                logger.info(f"准备鼠标点击: 坐标=({x}, {y}), 按钮={button}")
+                
                 result = kvm_manager.send_mouse_click(
                     kvm_config['ip'],
                     kvm_config['port'],
@@ -304,30 +342,38 @@ class MouseActionNode(BaseNode):
                 )
                 if result:
                     logger.info(f"鼠标点击发送成功: ({x}, {y}), button={button}")
+                    if flow_id:
+                        send_debug(flow_id, f"✅ 鼠标[{loop_count}]: 点击成功")
                 else:
                     logger.error(f"鼠标点击发送失败: ({x}, {y}), button={button}")
+                    if flow_id:
+                        send_debug(flow_id, f"❌ 鼠标[{loop_count}]: 点击失败")
                 return result
                 
             elif action_type == 'double_click':
-                # 双击 = 两次点击
-                result1 = kvm_manager.send_mouse_click(
+                if flow_id:
+                    send_debug(flow_id, f"🖱️ 鼠标[{loop_count}]: 双击 ({x}, {y}), {button}键")
+                    
+                # 使用新的双击方法
+                result = kvm_manager.send_mouse_double_click(
                     kvm_config['ip'],
                     kvm_config['port'],
                     kvm_config['channel'],
                     x, y, button
                 )
-                time.sleep(0.1)
-                result2 = kvm_manager.send_mouse_click(
-                    kvm_config['ip'],
-                    kvm_config['port'],
-                    kvm_config['channel'],
-                    x, y, button
-                )
-                if result1 and result2:
-                    logger.info(f"鼠标双击: ({x}, {y})")
-                return result1 and result2
+                if result:
+                    logger.info(f"鼠标双击成功: ({x}, {y})")
+                    if flow_id:
+                        send_debug(flow_id, f"✅ 鼠标[{loop_count}]: 双击成功")
+                else:
+                    if flow_id:
+                        send_debug(flow_id, f"❌ 鼠标[{loop_count}]: 双击失败")
+                return result
                 
             elif action_type == 'move':
+                if flow_id:
+                    send_debug(flow_id, f"🖱️ 鼠标[{loop_count}]: 移动到 ({x}, {y})")
+                    
                 result = kvm_manager.send_mouse_move(
                     kvm_config['ip'],
                     kvm_config['port'],
@@ -335,13 +381,15 @@ class MouseActionNode(BaseNode):
                     x, y
                 )
                 if result:
-                    logger.info(f"鼠标移动: ({x}, {y})")
+                    logger.info(f"鼠标移动成功: ({x}, {y})")
                 return result
             
             return True
             
         except Exception as e:
             logger.error(f"鼠标操作失败: {e}")
+            if flow_id:
+                send_debug(flow_id, f"❌ 鼠标[{loop_count}]: 异常 - {str(e)}")
             return False
 
 

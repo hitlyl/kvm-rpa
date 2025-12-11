@@ -13,11 +13,7 @@ from .protocol.protocol_handler import ProtocolHandler
 from .video.video_handler import VideoHandler
 
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# 获取 logger，不在这里配置 basicConfig，由应用程序控制日志配置
 logger = logging.getLogger(__name__)
 
 
